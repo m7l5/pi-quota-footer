@@ -1,0 +1,61 @@
+{
+  "name": "pi-quota-footer",
+  "version": "0.3.0",
+  "description": "Codex, Claude, GLM, and Kimi usage quotas rendered inline in pi's footer",
+  "keywords": [
+    "claude",
+    "codex",
+    "glm",
+    "kimi",
+    "pi-extension",
+    "pi-package",
+    "quota",
+    "rate-limits",
+    "usage"
+  ],
+  "license": "MIT",
+  "files": [
+    "index.ts",
+    "footer.ts",
+    "quota.ts",
+    "credentials.ts",
+    "types.ts",
+    "util.ts",
+    "providers",
+    "README.md",
+    "LICENSE",
+    "docs/screenshot.png"
+  ],
+  "type": "module",
+  "scripts": {
+    "check": "tsc -p tsconfig.json",
+    "lint": "oxlint .",
+    "fmt": "oxfmt .",
+    "fmt:check": "oxfmt --check .",
+    "probe": "tsx scripts/probe.ts",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.214"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "^0.80.10",
+    "@earendil-works/pi-coding-agent": "^0.80.10",
+    "@earendil-works/pi-tui": "^0.80.10",
+    "@types/node": "^26.0.0",
+    "oxfmt": "^0.59.0",
+    "oxlint": "^1.74.0",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "image": "https://raw.githubusercontent.com/m7l5/pi-quota-footer/main/docs/screenshot.png"
+  }
+}
