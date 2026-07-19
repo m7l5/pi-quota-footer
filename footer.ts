@@ -110,8 +110,26 @@ const PROVIDERS: ProviderRenderSpec[] = [
   { key: "kimi", name: "Kimi" },
 ];
 
+/**
+ * Fidelity ladder for the quota segment, richest first:
+ * - "full":       Codex 5h:34%(2h) w:12%(3d)
+ * - "no-resets":  Codex 5h:34% w:12%
+ * - "worst-only": Codex 34%   (worst window, threshold color kept)
+ */
+export type QuotaDetail = "full" | "no-resets" | "worst-only";
+
+export const QUOTA_DETAIL_LEVELS: QuotaDetail[] = ["full", "no-resets", "worst-only"];
+
+/** Below this usable width the quota line is dropped entirely. */
+export const QUOTA_MIN_WIDTH = 16;
+
 /** Build the quota segment parts, one per configured provider. */
-export function quotaFooterParts(quota: QuotaState, nowMs: number, style: FooterStyle): string[] {
+export function quotaFooterParts(
+  quota: QuotaState,
+  nowMs: number,
+  style: FooterStyle,
+  detail: QuotaDetail = "full",
+): string[] {
   const parts: string[] = [];
   for (const { key, name } of PROVIDERS) {
     const state = quota[key];
@@ -122,6 +140,16 @@ export function quotaFooterParts(quota: QuotaState, nowMs: number, style: Footer
       continue;
     }
     const stale = nowMs - state.snapshot.fetchedAtMs > STALE_AFTER_MS;
+    const maxPercent = Math.max(0, ...state.snapshot.windows.map((window) => window.usedPercent));
+    if (detail === "worst-only") {
+      const percentText = `${String(Math.round(maxPercent))}%`;
+      parts.push(
+        stale
+          ? style.fg("dim", `${name} ${percentText}`)
+          : `${style.fg("dim", name)} ${colorByPercent(style, maxPercent, percentText)}`,
+      );
+      continue;
+    }
     if (stale) {
       const windowText = state.snapshot.windows
         .map((window) => `${window.label}:${String(Math.round(window.usedPercent))}%`)
@@ -130,7 +158,6 @@ export function quotaFooterParts(quota: QuotaState, nowMs: number, style: Footer
       continue;
     }
     // Percent carries the threshold color; the remaining time stays dim.
-    const maxPercent = Math.max(0, ...state.snapshot.windows.map((window) => window.usedPercent));
     const windowText = state.snapshot.windows
       .map((window) => {
         const percent = colorByPercent(
@@ -139,9 +166,9 @@ export function quotaFooterParts(quota: QuotaState, nowMs: number, style: Footer
           `${window.label}:${String(Math.round(window.usedPercent))}%`,
         );
         const reset =
-          window.resetAtMs === undefined
-            ? ""
-            : style.fg("dim", `(${formatResetCompact(window.resetAtMs, nowMs)})`);
+          detail === "full" && window.resetAtMs !== undefined
+            ? style.fg("dim", `(${formatResetCompact(window.resetAtMs, nowMs)})`)
+            : "";
         return percent + reset;
       })
       .join(" ");
@@ -187,15 +214,7 @@ export function renderFooterLines(input: FooterRenderInput, style: FooterStyle):
     statsParts.push(`${style.fg("dim", "•")} ${style.bold(style.fg("warning", "xp"))}`);
   }
 
-  // --- Quota segment: between the stats above and the model on the right -------
-  statsParts.push(...quotaFooterParts(input.quota, input.nowMs, style));
-
-  let statsLeft = statsParts.join(" ");
-  let statsLeftWidth = visibleWidth(statsLeft);
-  if (statsLeftWidth > input.width) {
-    statsLeft = truncateToWidth(statsLeft, input.width, style.fg("dim", "..."));
-    statsLeftWidth = visibleWidth(statsLeft);
-  }
+  const statsBase = statsParts.join(" ");
 
   // --- Right side: model (+provider, +thinking level) ---------------------------
   const modelName = input.modelId ?? "no-model";
@@ -213,6 +232,46 @@ export function renderFooterLines(input: FooterRenderInput, style: FooterStyle):
   if (claudeRuntimeStatus !== undefined) {
     rightWithoutProvider = `${sanitizeStatusText(claudeRuntimeStatus)} • ${rightWithoutProvider}`;
   }
+
+  // --- Quota placement: richest detail that fits inline, else its own line ------
+  // Inline candidates must leave room for the right side (without the optional
+  // provider prefix), so the model name never gets eaten by the quota segment.
+  const rightMinWidth = visibleWidth(rightWithoutProvider);
+  let statsLeft = statsBase;
+  let quotaLine: string | undefined;
+  if (quotaFooterParts(input.quota, input.nowMs, style, "worst-only").length > 0) {
+    let placedInline = false;
+    for (const detail of QUOTA_DETAIL_LEVELS) {
+      const candidate = `${statsBase} ${quotaFooterParts(input.quota, input.nowMs, style, detail).join(" ")}`;
+      if (visibleWidth(candidate) + MIN_PADDING + rightMinWidth <= input.width) {
+        statsLeft = candidate;
+        placedInline = true;
+        break;
+      }
+    }
+    if (!placedInline && input.width >= QUOTA_MIN_WIDTH) {
+      // Own line gets the full width back, so it usually regains full detail.
+      for (const detail of QUOTA_DETAIL_LEVELS) {
+        const candidate = quotaFooterParts(input.quota, input.nowMs, style, detail).join(" ");
+        if (visibleWidth(candidate) <= input.width) {
+          quotaLine = candidate;
+          break;
+        }
+      }
+      quotaLine ??= truncateToWidth(
+        quotaFooterParts(input.quota, input.nowMs, style, "worst-only").join(" "),
+        input.width,
+        style.fg("dim", "..."),
+      );
+    }
+  }
+
+  let statsLeftWidth = visibleWidth(statsLeft);
+  if (statsLeftWidth > input.width) {
+    statsLeft = truncateToWidth(statsLeft, input.width, style.fg("dim", "..."));
+    statsLeftWidth = visibleWidth(statsLeft);
+  }
+
   let rightSide = rightWithoutProvider;
   if (input.providerCount > 1 && input.modelProvider !== undefined) {
     const withProvider = `(${input.modelProvider}) ${rightWithoutProvider}`;
@@ -250,13 +309,26 @@ export function renderFooterLines(input: FooterRenderInput, style: FooterStyle):
     truncateToWidth(style.fg("dim", pwd), input.width, style.fg("dim", "...")),
     statsLine,
   ];
+  if (quotaLine !== undefined) lines.push(quotaLine);
 
-  // --- Line 3 (optional): other extensions' setStatus() texts ---------------------
+  // --- Optional trailing lines: other extensions' setStatus() texts ---------------
+  // Greedy-wrap between whole statuses; a single over-wide status still truncates.
   const otherStatuses = [...input.extensionStatuses.entries()]
     .filter(([key]) => key !== "claude-runtime" || input.modelProvider !== "claude-runtime")
     .toSorted(([a], [b]) => a.localeCompare(b));
   if (otherStatuses.length > 0) {
-    const statusLine = otherStatuses.map(([, text]) => sanitizeStatusText(text)).join(" ");
+    let statusLine = "";
+    for (const [, text] of otherStatuses) {
+      const status = sanitizeStatusText(text);
+      if (statusLine === "") {
+        statusLine = status;
+      } else if (visibleWidth(`${statusLine} ${status}`) <= input.width) {
+        statusLine = `${statusLine} ${status}`;
+      } else {
+        lines.push(truncateToWidth(statusLine, input.width, style.fg("dim", "...")));
+        statusLine = status;
+      }
+    }
     lines.push(truncateToWidth(statusLine, input.width, style.fg("dim", "...")));
   }
 
