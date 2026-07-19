@@ -1,8 +1,10 @@
 {
   "name": "pi-quota-footer",
   "version": "0.3.0",
-  "description": "Codex, Claude, GLM, and Kimi usage quotas rendered inline in pi's footer",
+  "description": "Codex, Claude, GLM, Kimi, and Qwen (Alibaba Bailian) usage quotas rendered inline in pi's footer",
   "keywords": [
+    "alibaba",
+    "bailian",
     "claude",
     "codex",
     "glm",
@@ -10,6 +12,7 @@
     "pi-extension",
     "pi-package",
     "quota",
+    "qwen",
     "rate-limits",
     "usage"
   ],

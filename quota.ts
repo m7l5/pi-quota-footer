@@ -15,6 +15,7 @@ import {
   resolveKimiApiKey,
   resolveZaiApiKey,
 } from "./credentials.js";
+import { fetchAlibabaUsage, readBailianConsoleIdentity } from "./providers/alibaba.js";
 import { fetchClaudeUsage, isClaudeCodeLoggedIn } from "./providers/claude.js";
 import { fetchCodexUsage } from "./providers/codex.js";
 import { fetchKimiUsage } from "./providers/kimi.js";
@@ -26,6 +27,7 @@ const CODEX_PROVIDER = "openai-codex";
 const CLAUDE_PROVIDERS = ["anthropic", "claude-runtime"];
 const ZAI_PROVIDER = "zai";
 const KIMI_PROVIDER = "kimi-coding";
+const ALIBABA_PROVIDER = "alibaba";
 const CLAUDE_BINARY = process.env.PI_CLAUDE_RUNTIME_BINARY ?? "claude";
 
 /** Segment omitted: provider not active in pi. Any previous snapshot is dropped. */
@@ -106,17 +108,33 @@ async function collectKimi(ctx: ExtensionContext, previous: ProviderState): Prom
   return mergeProviderState(previous, await fetchKimiUsage(apiKey));
 }
 
+async function collectAlibaba(
+  ctx: ExtensionContext,
+  previous: ProviderState,
+): Promise<ProviderState> {
+  const activeInPi = isProviderActive(ctx, ALIBABA_PROVIDER);
+  const identity = await readBailianConsoleIdentity();
+  if (!activeInPi && identity === undefined) return inactive();
+  if (identity === undefined) {
+    return hidden(
+      "active in pi, but no Bailian console session — run `bl auth login --console` to query Alibaba quota",
+    );
+  }
+  return mergeProviderState(previous, await fetchAlibabaUsage(identity));
+}
+
 export async function collectQuotas(
   ctx: ExtensionContext,
   previous: QuotaState,
 ): Promise<QuotaState> {
-  const [codex, claude, zai, kimi] = await Promise.all([
+  const [codex, claude, zai, kimi, alibaba] = await Promise.all([
     collectCodex(ctx, previous.codex),
     collectClaude(ctx, previous.claude),
     collectZai(ctx, previous.zai),
     collectKimi(ctx, previous.kimi),
+    collectAlibaba(ctx, previous.alibaba),
   ]);
-  return { codex, claude, zai, kimi };
+  return { codex, claude, zai, kimi, alibaba };
 }
 
 function formatProviderDetails(name: string, state: ProviderState, nowMs: number): string {
@@ -146,5 +164,6 @@ export function formatQuotaDetails(state: QuotaState, nowMs: number): string {
     formatProviderDetails("Claude", state.claude, nowMs),
     formatProviderDetails("GLM", state.zai, nowMs),
     formatProviderDetails("Kimi", state.kimi, nowMs),
+    formatProviderDetails("Qwen", state.alibaba, nowMs),
   ].join("\n");
 }

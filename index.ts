@@ -1,5 +1,6 @@
 /**
- * quota-footer — Codex, Claude, GLM, and Kimi usage quotas in pi's footer.
+ * quota-footer — Codex, Claude, GLM, Kimi, and Qwen (Alibaba) usage quotas in
+ * pi's footer.
  *
  * Renders a compact quota segment between the session stats (tokens, cache hit,
  * cost, context %) and the model name, e.g.:

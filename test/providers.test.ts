@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { parseAlibabaSubscriptionDetails, parseAlibabaUsage } from "../providers/alibaba.js";
 import { parseClaudeCliUsage, parseClaudeUsage } from "../providers/claude.js";
 import { parseZaiUsage } from "../providers/zai.js";
 import type { UsageFetchResult, UsageOk } from "../types.js";
@@ -72,4 +73,62 @@ test("parses Z.AI model windows and ignores the MCP quota", () => {
     ],
   );
   assert.equal(snapshot.windows[0]?.resetAtMs, 1784389564000);
+});
+
+test("parses Alibaba/Bailian Token Plan 5h and weekly windows", () => {
+  const result = parseAlibabaUsage({
+    data: {
+      DataV2: {
+        data: {
+          data: {
+            per5HourPercentage: 0.0625,
+            per5HourResetTime: 1_784_475_240_000,
+            per1WeekPercentage: 0.03125,
+            per1WeekResetTime: 1_785_062_040_000,
+          },
+          success: true,
+        },
+      },
+    },
+  });
+  const snapshot = expectOk(result);
+  assert.deepEqual(
+    snapshot.windows.map(({ label, usedPercent }) => ({ label, usedPercent })),
+    [
+      { label: "5h", usedPercent: 6.25 },
+      { label: "w", usedPercent: 3.125 },
+    ],
+  );
+  assert.equal(snapshot.windows[0]?.resetAtMs, 1_784_475_240_000);
+  assert.equal(snapshot.windows[1]?.resetAtMs, 1_785_062_040_000);
+});
+
+test("Alibaba usage parser errors when no Token Plan data is present", () => {
+  assert.equal(parseAlibabaUsage({ data: { DataV2: { data: { data: {} } } } }).ok, false);
+  assert.equal(parseAlibabaUsage({}).ok, false);
+});
+
+test("parses Alibaba/Bailian subscription detail lines", () => {
+  const endTime = 1_787_155_200_000;
+  const lines = parseAlibabaSubscriptionDetails({
+    data: {
+      DataV2: {
+        data: {
+          data: {
+            specCode: "standard",
+            status: "VALID",
+            remainingDays: 31,
+            endTime,
+            autoRenewFlag: false,
+          },
+        },
+      },
+    },
+  });
+  assert.deepEqual(lines, [
+    "plan: standard · VALID",
+    "days left: 31",
+    `renews: ${new Date(endTime).toISOString().slice(0, 10)}`,
+    "auto-renew: off",
+  ]);
 });

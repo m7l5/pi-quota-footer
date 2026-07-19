@@ -108,6 +108,7 @@ const PROVIDERS: ProviderRenderSpec[] = [
   { key: "claude", name: "Claude" },
   { key: "zai", name: "GLM" },
   { key: "kimi", name: "Kimi" },
+  { key: "alibaba", name: "Qwen" },
 ];
 
 /**

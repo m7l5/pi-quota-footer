@@ -39,6 +39,7 @@ export interface QuotaState {
   claude: ProviderState;
   zai: ProviderState;
   kimi: ProviderState;
+  alibaba: ProviderState;
 }
 
 function emptyProviderState(): ProviderState {
@@ -51,5 +52,6 @@ export function emptyQuotaState(): QuotaState {
     claude: emptyProviderState(),
     zai: emptyProviderState(),
     kimi: emptyProviderState(),
+    alibaba: emptyProviderState(),
   };
 }
