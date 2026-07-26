@@ -31,6 +31,7 @@
   ],
   "type": "module",
   "scripts": {
+    "audit:production": "npm audit --omit=dev --audit-level=moderate",
     "check": "tsc -p tsconfig.json",
     "lint": "oxlint .",
     "fmt": "oxfmt .",
@@ -39,7 +40,7 @@
     "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.3.214"
+    "@anthropic-ai/claude-agent-sdk": "0.3.220"
   },
   "devDependencies": {
     "@earendil-works/pi-ai": "^0.80.10",
@@ -54,6 +55,18 @@
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@earendil-works/pi-tui": {
+      "optional": true
+    }
+  },
+  "overrides": {
+    "@hono/node-server": "2.0.12",
+    "fast-uri": "3.1.4"
   },
   "pi": {
     "extensions": [
